@@ -4,85 +4,102 @@ from datetime import datetime
 
 st.set_page_config(page_title="PharmaDeliver", page_icon="💊", layout="wide")
 
-# Fake database (will be replaced with real DB later)
+# Initialize session state
 if 'orders' not in st.session_state:
     st.session_state.orders = []
 
-st.sidebar.title("💊 PharmaDeliver")
-role = st.sidebar.radio("Mode", ["Patient", "Pharmacist"])
+st.title("💊 PharmaDeliver")
+st.caption("Medication Delivery from Your Trusted Pharmacy")
 
-st.title("PharmaDeliver - Medication Delivery")
+# Role Selection
+role = st.sidebar.selectbox("Select Your Role", ["Patient", "Pharmacist"])
 
 if role == "Patient":
-    st.header("Place New Order")
+    st.header("Welcome, Patient 👋")
     
-    tab1, tab2 = st.tabs(["📄 Upload Prescription", "🔍 Manual Order"])
+    menu = st.radio("What would you like to do?", 
+                   ["Place New Order", "My Orders"], horizontal=True)
     
-    with tab1:
-        st.subheader("Upload Prescription")
-        uploaded = st.file_uploader("Upload clear prescription", type=['jpg','png','jpeg','pdf'])
-        if uploaded:
-            st.image(uploaded, width=400)
-        notes = st.text_area("Notes (urgency, allergies, etc.)")
-        address = st.text_area("Delivery Address")
-        recipient_phone = st.text_input("Recipient Phone Number")
+    if menu == "Place New Order":
+        st.subheader("New Medication Order")
         
-        if st.button("Submit Prescription", type="primary"):
-            new_order = {
-                "id": f"PD-{len(st.session_state.orders)+1001}",
-                "type": "Prescription",
-                "status": "Pending Review",
-                "address": address,
-                "phone": recipient_phone,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
-            }
-            st.session_state.orders.append(new_order)
-            st.success(f"Order {new_order['id']} submitted successfully!")
+        tab1, tab2 = st.tabs(["📄 Upload Prescription", "🔍 Manual / OTC Order"])
+        
+        with tab1:
+            uploaded = st.file_uploader("Upload Prescription Photo or PDF", 
+                                      type=['jpg', 'jpeg', 'png', 'pdf'])
+            if uploaded:
+                st.image(uploaded, width=500)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                address = st.text_area("Delivery Address", height=100)
+            with col2:
+                recipient_phone = st.text_input("Recipient Phone Number")
+            
+            notes = st.text_area("Additional Notes (Allergies, Urgency, etc.)")
+            
+            if st.button("🚀 Submit Prescription for Review", type="primary", use_container_width=True):
+                new_order = {
+                    "id": f"PD-{1000 + len(st.session_state.orders)}",
+                    "type": "Prescription",
+                    "status": "Pending Review",
+                    "address": address,
+                    "phone": recipient_phone,
+                    "notes": notes,
+                    "time": datetime.now().strftime("%d %b %H:%M")
+                }
+                st.session_state.orders.append(new_order)
+                st.success(f"✅ Order {new_order['id']} submitted successfully!")
+        
+        with tab2:
+            st.info("Manual order feature coming soon...")
+    
+    elif menu == "My Orders":
+        st.subheader("My Orders")
+        if st.session_state.orders:
+            df = pd.DataFrame(st.session_state.orders)
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("You have no orders yet.")
 
-    with tab2:
-        st.subheader("Manual Order (OTC/Refill)")
-        med = st.text_input("Medicine Name & Strength")
-        qty = st.number_input("Quantity", min_value=1, value=1)
-        if st.button("Add Item & Proceed"):
-            st.info("Cart feature coming in next update")
-
-    # My Orders
-    if st.session_state.orders:
-        st.subheader("My Recent Orders")
-        df = pd.DataFrame(st.session_state.orders)
-        st.dataframe(df, use_container_width=True)
-
-else:  # Pharmacist Mode
+else:  # Pharmacist Dashboard
     st.header("🧑‍⚕️ Pharmacist Dashboard")
     
-    tab1, tab2, tab3 = st.tabs(["📋 Pending Review", "🚚 Active Orders", "📊 Summary"])
+    tabs = st.tabs(["📋 Pending Prescriptions", "🚚 Active Orders", "📊 Overview"])
     
-    with tab1:
+    with tabs[0]:
         st.subheader("Pending Prescriptions")
         pending = [o for o in st.session_state.orders if o["status"] == "Pending Review"]
         
-        for order in pending:
-            with st.expander(f"Order {order['id']} - {order['phone']}"):
-                st.write(f"**Address:** {order['address']}")
-                st.write(f"**Submitted:** {order['time']}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("✅ Approve", key=order['id']):
-                        order["status"] = "Approved - Preparing"
-                        st.success("Approved!")
-                with col2:
-                    if st.button("❌ Reject", key=order['id']+"rej"):
-                        order["status"] = "Rejected"
-                        st.error("Rejected")
+        if pending:
+            for order in pending:
+                with st.expander(f"📌 Order {order['id']} - {order['phone']}"):
+                    st.write(f"**Address:** {order['address']}")
+                    st.write(f"**Time:** {order['time']}")
+                    st.write(f"**Notes:** {order.get('notes', 'None')}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("✅ Approve", key=order['id']):
+                            order["status"] = "Approved - Preparing"
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Reject", key=order['id']+"r"):
+                            order["status"] = "Rejected"
+                            st.rerun()
+        else:
+            st.info("No pending prescriptions")
     
-    with tab2:
-        st.subheader("Active Orders")
+    with tabs[1]:
+        st.subheader("Active / In Progress Orders")
         active = [o for o in st.session_state.orders if "Approved" in o["status"]]
         for order in active:
-            st.write(f"Order {order['id']} → {order['status']}")
+            st.success(f"Order {order['id']} → {order['status']}")
     
-    with tab3:
-        st.metric("Total Orders Today", len(st.session_state.orders))
-        st.metric("Pending Review", len([o for o in st.session_state.orders if o["status"] == "Pending Review"]))
+    with tabs[2]:
+        total = len(st.session_state.orders)
+        pending_count = len([o for o in st.session_state.orders if o["status"] == "Pending Review"])
+        st.metric("Total Orders", total)
+        st.metric("Pending Review", pending_count)
 
-st.sidebar.success("App Updated")
+st.sidebar.info("Switch role from sidebar")

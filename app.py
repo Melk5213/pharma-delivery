@@ -1,68 +1,88 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime
 
 st.set_page_config(page_title="PharmaDeliver", page_icon="💊", layout="wide")
 
-# Sidebar
-st.sidebar.title("PharmaDeliver")
-role = st.sidebar.radio("Select Role", ["Patient View", "Pharmacist Dashboard"])
+# Fake database (will be replaced with real DB later)
+if 'orders' not in st.session_state:
+    st.session_state.orders = []
 
-st.title("💊 PharmaDeliver")
-st.caption("Medication Delivery from Your Pharmacy")
+st.sidebar.title("💊 PharmaDeliver")
+role = st.sidebar.radio("Mode", ["Patient", "Pharmacist"])
 
-if role == "Patient View":
-    st.header("New Medication Order")
+st.title("PharmaDeliver - Medication Delivery")
+
+if role == "Patient":
+    st.header("Place New Order")
     
     tab1, tab2 = st.tabs(["📄 Upload Prescription", "🔍 Manual Order"])
     
     with tab1:
-        st.write("Upload clear photo of your prescription")
-        uploaded = st.file_uploader("Choose image or PDF", type=['jpg','png','jpeg','pdf'])
+        st.subheader("Upload Prescription")
+        uploaded = st.file_uploader("Upload clear prescription", type=['jpg','png','jpeg','pdf'])
         if uploaded:
-            st.image(uploaded, caption="Prescription")
-        notes = st.text_area("Additional Notes (urgency, allergies, etc.)")
-        if st.button("Submit Prescription for Review", type="primary"):
-            st.success("✅ Prescription submitted! We will review it shortly.")
-    
-    with tab2:
-        col1, col2 = st.columns(2)
-        with col1:
-            med = st.text_input("Medicine Name")
-            qty = st.number_input("Quantity", min_value=1, value=1)
-        with col2:
-            if st.button("Add to Cart"):
-                st.success(f"Added {qty} × {med}")
-    
-    st.subheader("Delivery Details")
-    address = st.text_area("Delivery Address")
-    phone = st.text_input("Recipient Phone Number")
-    if st.button("Submit Order", type="primary"):
-        st.success("Order placed successfully! Order #PD-1001")
+            st.image(uploaded, width=400)
+        notes = st.text_area("Notes (urgency, allergies, etc.)")
+        address = st.text_area("Delivery Address")
+        recipient_phone = st.text_input("Recipient Phone Number")
+        
+        if st.button("Submit Prescription", type="primary"):
+            new_order = {
+                "id": f"PD-{len(st.session_state.orders)+1001}",
+                "type": "Prescription",
+                "status": "Pending Review",
+                "address": address,
+                "phone": recipient_phone,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+            }
+            st.session_state.orders.append(new_order)
+            st.success(f"Order {new_order['id']} submitted successfully!")
 
-else:  # Pharmacist Dashboard
+    with tab2:
+        st.subheader("Manual Order (OTC/Refill)")
+        med = st.text_input("Medicine Name & Strength")
+        qty = st.number_input("Quantity", min_value=1, value=1)
+        if st.button("Add Item & Proceed"):
+            st.info("Cart feature coming in next update")
+
+    # My Orders
+    if st.session_state.orders:
+        st.subheader("My Recent Orders")
+        df = pd.DataFrame(st.session_state.orders)
+        st.dataframe(df, use_container_width=True)
+
+else:  # Pharmacist Mode
     st.header("🧑‍⚕️ Pharmacist Dashboard")
     
-    tab1, tab2, tab3 = st.tabs(["📋 Pending Prescriptions", "📦 Active Orders", "📊 Today Summary"])
+    tab1, tab2, tab3 = st.tabs(["📋 Pending Review", "🚚 Active Orders", "📊 Summary"])
     
     with tab1:
         st.subheader("Pending Prescriptions")
-        col1, col2 = st.columns([3,1])
-        with col1:
-            st.write("**Order #PD-1001** - John Doe")
-            st.write("Phone: +254712345678")
-            st.image("https://via.placeholder.com/600x400?text=Prescription+Image", caption="Uploaded Prescription")
-        with col2:
-            if st.button("✅ Approve"):
-                st.success("Order Approved")
-            if st.button("❌ Reject"):
-                st.error("Order Rejected")
+        pending = [o for o in st.session_state.orders if o["status"] == "Pending Review"]
+        
+        for order in pending:
+            with st.expander(f"Order {order['id']} - {order['phone']}"):
+                st.write(f"**Address:** {order['address']}")
+                st.write(f"**Submitted:** {order['time']}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Approve", key=order['id']):
+                        order["status"] = "Approved - Preparing"
+                        st.success("Approved!")
+                with col2:
+                    if st.button("❌ Reject", key=order['id']+"rej"):
+                        order["status"] = "Rejected"
+                        st.error("Rejected")
     
     with tab2:
-        st.write("Active Orders (Being Prepared / Out for Delivery)")
-        st.info("No active orders yet (demo)")
+        st.subheader("Active Orders")
+        active = [o for o in st.session_state.orders if "Approved" in o["status"]]
+        for order in active:
+            st.write(f"Order {order['id']} → {order['status']}")
     
     with tab3:
-        st.metric("Orders Today", "8")
-        st.metric("Pending Review", "3")
-        st.metric("Revenue Today", "$245")
+        st.metric("Total Orders Today", len(st.session_state.orders))
+        st.metric("Pending Review", len([o for o in st.session_state.orders if o["status"] == "Pending Review"]))
 
-st.sidebar.caption("Built for safe medication delivery")
+st.sidebar.success("App Updated")
